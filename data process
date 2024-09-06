@@ -1,0 +1,230 @@
+#data clean and process
+import os
+import re
+import pandas as pd
+import gender_guesser.detector as gender
+from genderComputer import GenderComputer
+gc = GenderComputer()
+# Define the directory containing the files
+directory = 'C:/Users/icytail/Desktop/data'  # Update this with the actual path to your files
+print(gc.resolveGender('ocls at sibylline.com (George Elgin, Suzette Haden Elgin)',None))
+d = gender.Detector()
+gend = d.get_gender(u"L.M.Fosse")
+print(gend)
+print(d.get_gender(u"Bob"))
+num_map = {}
+# Function to extract messages
+
+data = {
+        "date": [],
+        "from": [],
+        "subject": [],
+        "body": [],
+        "gender": []
+}
+def extract_messages(file_path):
+    with open(file_path, 'r', encoding='gbk', errors='ignore') as file:
+        content = file.read()
+
+    # Use regular expression to extract message parts
+    content += "LINGUIST List"
+    if(content.__contains__("- Message 1 -")):
+        messages = re.findall(r"-+ Message 1 -+\n(.*?)LINGUIST List",
+                              content, re.DOTALL)
+    else:
+        messages = re.findall(r"-+Messages-+\n(.*?)LINGUIST List",
+                              content, re.DOTALL)
+    extracted_messages = "\n\n".join(messages)
+
+    # Write extracted messages to a new file
+    extracted_file_path = file_path.replace(".txt", "_Extracted_Messages.txt")
+    with open(extracted_file_path, "w") as output_file:
+        output_file.write(extracted_messages)
+
+    return extracted_file_path
+
+
+# Function to clean messages
+def clean_messages(file_path):
+    with open(file_path, 'r') as file:
+        content = file.read()
+
+    # Remove numbers before right parentheses
+    cleaned_content = re.sub(r'\d+\)', '', content)
+
+    # Save cleaned content to a new file
+    cleaned_file_path = file_path.replace("_Extracted_Messages.txt", "_Cleaned_Extracted_Messages.txt")
+    with open(cleaned_file_path, 'w') as file:
+        file.write(cleaned_content)
+
+    return cleaned_file_path
+
+
+# Function to create DataFrame from cleaned messages
+def create_dataframe(file_path):
+
+
+    with open(file_path, "r") as file:
+        content = file.read()
+
+    # Split content by delimiter
+    records = re.split(r"(Date:)",content)
+    records = ["".join(pair) for pair in zip(records[1::2], records[2::2])]
+
+    # print(len(records))
+    for record in records:
+        if record.strip():  # Skip empty
+            lines = record.strip().split("\n")
+            date = None
+            from_ = None
+            subject = None
+            body_lines = []
+            gender_map = {}
+            body_start = False
+            for line in lines:
+                if line.startswith("Date:"):
+                    date = line.replace("Date:", "").strip()
+                elif line.startswith("From:"):
+                    from_ = line.replace("From:", "").strip()
+                elif line.startswith("Subject:"):
+                    subject = line.replace("Subject:", "").strip()
+                    body_start = True  # Start collecting body after subject line
+                elif body_start:
+                    body_lines.append(line)
+            body = "\n".join(body_lines).strip()
+            if from_ is not None:
+                from_words = from_.split()
+            else:
+                from_words = []
+            words = from_words
+            gender_map["female"] = 0
+            gender_map["male"] = 0
+            for i in range(len(words)):
+                for j in range(i+1, min(i+4,len(words))):
+                    name = " ".join(words[i:j])
+                    gend = gc.resolveGender(name, None)
+                    if gend is not None:
+                        # print(gend)
+                        # print(name,gend)
+                        if gend in gender_map:
+                            gender_map[gend]+=1
+                        else:
+                            gender_map[gend]=1
+                        if gend in num_map:
+                            num_map[gend]+=1
+                        else:
+                            num_map[gend]=1
+            if gender_map["male"] > gender_map["female"]:
+                data["gender"].append("male")
+                data["date"].append(date)
+                data["from"].append(from_)
+                data["subject"].append(subject)
+                data["body"].append(body)
+            # elif gender_map["male"] > gender_map["female"]:
+            #     data["gender"].append("male")
+            #     data["date"].append(date)
+            #     data["from"].append(from_)
+            #     data["subject"].append(subject)
+            #     data["body"].append(body)
+            else:
+                continue
+    print(num_map)
+
+
+    # # Create DataFrame
+    # df = pd.DataFrame(data)
+    #
+    # # Save DataFrame to a CSV file
+    # csv_file_path = file_path.replace("_Cleaned_Extracted_Messages.txt", "_Messages.csv")
+    # df.to_csv(csv_file_path,index=True)
+
+
+# Process each file in the directory
+for filename in os.listdir(directory):
+    if filename.endswith(".txt"):
+        file_path = os.path.join(directory, filename)
+        print(file_path)
+        extracted_file_path = extract_messages(file_path)
+        cleaned_file_path = clean_messages(extracted_file_path)
+        create_dataframe(cleaned_file_path)
+    df = pd.DataFrame(data)
+    print(df.shape[0])
+    csv_file_path = "C:/Users/icytail/Desktop/data/data_male.csv"
+    df.to_csv(csv_file_path, index=True)
+
+print("Processing complete.")
+
+import pandas as pd 
+import numpy as np
+import math
+import nltk
+from nltk.sentiment import SentimentIntensityAnalyzer
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
+from nltk.tokenize import word_tokenize
+from sklearn.decomposition import LatentDirichletAllocation
+from sklearn.feature_extraction.text import CountVectorizer
+from nltk.tokenize import word_tokenize
+from nltk import pos_tag
+from tqdm import tqdm
+import re
+from collections import Counter
+
+# Download necessary resources for the first time
+# nltk.download('vader_lexicon')
+# nltk.download('stopwords')
+# nltk.download('wordnet')
+# nltk.download('punkt')
+# nltk.download('omw-1.4')
+# nltk.download('averaged_perceptron_tagger')
+
+def preprocess1(text):
+    text = text.replace('\n', ' ')
+    return text
+
+def length_count(text):
+    # Character count
+    character_count = len(text)
+    # Word count
+    word_count = len(text.split())
+    # Sentence count
+    sentence_count = len(text.split('.'))
+    return character_count, word_count, sentence_count
+
+def sentiment_analysis(text):
+    sia = SentimentIntensityAnalyzer()
+
+    sentiment_scores = sia.polarity
+
+#character count, word count, sentence count
+df = pd.read_excel(file_path)
+
+# Display the first few rows to check the data
+df.head()
+
+# Ensure the numeric columns are correctly formatted
+df['character_count'] = pd.to_numeric(df['character_count'], errors='coerce')
+df['word_count'] = pd.to_numeric(df['word_count'], errors='coerce')
+df['sentence_count'] = pd.to_numeric(df['sentence_count'], errors='coerce')
+
+# Group by gender and calculate the mean for each metric
+gender_analysis = df.groupby('gender')[['character_count', 'word_count', 'sentence_count']].mean().reset_index()
+
+# Display the results
+print(gender_analysis)
+
+# Display the differences between male and female averages
+male_avg = gender_analysis[gender_analysis['gender'] == 'male']
+female_avg = gender_analysis[gender_analysis['gender'] == 'female']
+
+print(f"Male Average Character Count: {male_avg['character_count'].values[0]}")
+print(f"Female Average Character Count: {female_avg['character_count'].values[0]}\n")
+
+print(f"Male Average Word Count: {male_avg['word_count'].values[0]}")
+print(f"Female Average Word Count: {female_avg['word_count'].values[0]}\n")
+
+print(f"Male Average Sentence Count: {male_avg['sentence_count'].values[0]}")
+print(f"Female Average Sentence Count: {female_avg['sentence_count'].values[0]}")
+
+
+   

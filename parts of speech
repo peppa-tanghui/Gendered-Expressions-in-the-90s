@@ -1,0 +1,25 @@
+import pandas as pd
+
+# Step 1: Load the provided Excel file
+file_path = '/mnt/data/data-gender2-output-2w.xlsx'
+data = pd.read_excel(file_path)
+
+# Step 2: Display the first few rows of the data to understand its structure (optional for inspection)
+data.head()
+
+# Step 3: Group by gender and calculate the mean for each part of speech column
+gender_analysis = data.groupby('gender')[['tag_JJ', 'tag_NN', 'tag_RB', 'tag_VB']].mean()
+
+# Step 4: Display the calculated averages
+print(gender_analysis)
+
+# Step 5: Plotting the results (optional for visualization)
+import matplotlib.pyplot as plt
+
+gender_analysis.plot(kind='bar', figsize=(10, 6))
+plt.title('Average Use of Different Parts of Speech by Gender')
+plt.xlabel('Gender')
+plt.ylabel('Average Count')
+plt.xticks(rotation=0)
+plt.legend(title='Part of Speech', loc='upper right')
+plt.show()

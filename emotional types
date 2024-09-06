@@ -1,0 +1,84 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# Load the data
+df = pd.read_excel('/mnt/data/2w.xlsx')
+
+# Calculate the average distribution of sentiment types
+sentiment_distribution = df.groupby(['gender', 'sentiment_type']).size().unstack().fillna(0)
+
+# Convert the counts to percentages for better comparison
+sentiment_distribution_percentage = sentiment_distribution.div(sentiment_distribution.sum(axis=1), axis=0) * 100
+
+# Display sentiment distribution percentages
+print(sentiment_distribution_percentage)
+
+# Plot stacked bar chart
+sentiment_distribution_percentage.plot(kind='bar', stacked=True, figsize=(10, 6), color=['#FF9999', '#66B2FF', '#99FF99'])
+
+plt.title('Sentiment Type Distribution by Gender')
+plt.xlabel('Gender')
+plt.ylabel('Percentage (%)')
+plt.xticks(rotation=0)
+plt.legend(title='Sentiment Type')
+plt.show()
+
+# Relationship between verbs, adverbs, adjectives, and sentiment features + visualization
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Load the data
+file_path = '/mnt/data/2w.xlsx'
+df = pd.read_excel(file_path)
+
+# Extract sentiment scores
+sentiment_scores = df['sentiment_scores'].apply(eval)  # Convert string representation of dictionaries to actual dictionaries
+sentiment_df = pd.json_normalize(sentiment_scores)
+
+# Add gender and sentiment type to the sentiment score DataFrame
+sentiment_df['gender'] = df['gender']
+sentiment_df['sentiment_type'] = df['sentiment_type']
+
+# Merge sentiment scores with the original DataFrame
+df = pd.concat([df, sentiment_df], axis=1)
+
+# Select columns related to linguistic features and sentiment scores
+linguistic_features = df[['adjectives', 'advervs', 'verbs', 'neg', 'neu', 'pos', 'compound', 'gender', 'sentiment_type']]
+
+# Calculate overall correlation for the dataset
+correlation_overall = linguistic_features.corr()
+
+# Calculate correlation separately by gender
+linguistic_features_male = linguistic_features[linguistic_features['gender'] == 'male']
+linguistic_features_female = linguistic_features[linguistic_features['gender'] == 'female']
+
+correlation_male = linguistic_features_male.corr()
+correlation_female = linguistic_features_female.corr()
+
+# Extract correlations between linguistic features and sentiment scores
+relevant_features = ['adjectives', 'advervs', 'verbs']
+relevant_scores = ['neg', 'neu', 'pos', 'compound']
+
+correlation_overall = correlation_overall.loc[relevant_features, relevant_scores]
+correlation_male = correlation_male.loc[relevant_features, relevant_scores]
+correlation_female = correlation_female.loc[relevant_features, relevant_scores]
+
+# Plot heatmap for male correlation
+plt.figure(figsize=(6, 6))
+sns.heatmap(correlation_male, annot=True, cmap="coolwarm")
+plt.title('Male - Correlation between Linguistic Features and Sentiment')
+plt.show()
+
+# Plot heatmap for female correlation
+plt.figure(figsize=(6, 6))
+sns.heatmap(correlation_female, annot=True, cmap="coolwarm")
+plt.title('Female - Correlation between Linguistic Features and Sentiment')
+plt.show()
+
+# Plot heatmap showing the difference in correlation between females and males
+plt.figure(figsize=(6, 6))
+correlation_diff = correlation_female - correlation_male
+sns.heatmap(correlation_diff, annot=True, cmap="coolwarm")
+plt.title('Difference in Correlation (Female - Male)')
+plt.show()

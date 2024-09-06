@@ -1,0 +1,62 @@
+import pandas as pd
+
+# Load the Excel file
+file_path = '/Users/tanghui/Desktop/dissertation.xlsx'
+df = pd.read_excel(file_path)
+
+# Display the first few rows to check the data
+df.head()
+
+# Ensure the numeric columns are correctly formatted
+df['character_count'] = pd.to_numeric(df['character_count'], errors='coerce')
+df['word_count'] = pd.to_numeric(df['word_count'], errors='coerce')
+df['sentence_count'] = pd.to_numeric(df['sentence_count'], errors='coerce')
+
+# Group by gender and calculate the mean for each metric
+gender_analysis = df.groupby('gender')[['character_count', 'word_count', 'sentence_count']].mean().reset_index()
+
+# Display the results
+print(gender_analysis)
+
+# Display the differences between male and female averages
+male_avg = gender_analysis[gender_analysis['gender'] == 'male']
+female_avg = gender_analysis[gender_analysis['gender'] == 'female']
+
+print(f"Male Average Character Count: {male_avg['character_count'].values[0]}")
+print(f"Female Average Character Count: {female_avg['character_count'].values[0]}\n")
+
+print(f"Male Average Word Count: {male_avg['word_count'].values[0]}")
+print(f"Female Average Word Count: {female_avg['word_count'].values[0]}\n")
+
+print(f"Male Average Sentence Count: {male_avg['sentence_count'].values[0]}")
+print(f"Female Average Sentence Count: {female_avg['sentence_count'].values[0]}")
+
+import matplotlib.pyplot as plt
+
+# Data for visualization
+labels = ['Character Count', 'Word Count', 'Sentence Count']
+male_means = [2486.58, 345.71, 31.45]
+female_means = [2403.85, 325.26, 30.18]
+
+# Bar positions
+bar_width = 0.35
+index = range(len(labels))
+
+# Create a bar plot
+fig, ax = plt.subplots(figsize=(10, 6))
+
+# Bar plots for male and female averages
+ax.bar(index, male_means, bar_width, label='Male', color='blue')
+ax.bar([i + bar_width for i in index], female_means, bar_width, label='Female', color='orange')
+
+# Adding labels and title
+ax.set_xlabel('Textual Metrics')
+ax.set_ylabel('Average Values')
+ax.set_title('Comparison of Male and Female Textual Metrics in Academic Writing')
+ax.set_xticks([i + bar_width / 2 for i in index])
+ax.set_xticklabels(labels)
+ax.legend()
+
+# Display the plot
+plt.tight_layout()
+plt.show()

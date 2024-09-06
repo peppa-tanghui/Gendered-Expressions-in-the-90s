@@ -1,0 +1,124 @@
+import pandas as pd
+
+# Load the Excel file
+file_path = '/mnt/data/2w.xlsx'
+df = pd.read_excel(file_path)
+
+# Display the first few rows to understand its structure
+df.head()
+
+import scipy.stats as stats
+import matplotlib.pyplot as plt
+
+# Grouping the data by gender and calculating the mean of polite_count and aggressive_count
+grouped_data = df.groupby('gender')[['polite_count', 'aggressive_count']].mean()
+
+# Performing t-tests to compare polite_count and aggressive_count between genders
+polite_ttest = stats.ttest_ind(df[df['gender'] == 'male']['polite_count'], 
+                               df[df['gender'] == 'female']['polite_count'], 
+                               equal_var=False)
+
+aggressive_ttest = stats.ttest_ind(df[df['gender'] == 'male']['aggressive_count'], 
+                                   df[df['gender'] == 'female']['aggressive_count'], 
+                                   equal_var=False)
+
+# Visualizing the results
+fig, ax = plt.subplots(1, 2, figsize=(12, 6))
+
+# Bar plot for mean counts
+grouped_data.plot(kind='bar', ax=ax[0], color=['skyblue', 'salmon'])
+ax[0].set_title('Average Politeness and Aggressiveness by Gender')
+ax[0].set_ylabel('Average Count')
+ax[0].set_xlabel('Gender')
+ax[0].legend(['Politeness Count', 'Aggressiveness Count'])
+
+# Box plots for the distribution of counts
+df.boxplot(column=['polite_count', 'aggressive_count'], by='gender', ax=ax[1])
+ax[1].set_title('Distribution of Politeness and Aggressiveness by Gender')
+ax[1].set_ylabel('Count')
+ax[1].set_xlabel('Gender')
+
+plt.suptitle('')
+plt.tight_layout()
+
+# Display the results
+grouped_data, polite_ttest, aggressive_ttest, plt.show()
+
+# Create new features
+df['net_politeness'] = df['polite_count'] - df['aggressive_count']
+df['combined_score'] = df['net_politeness'] * df['compound']
+
+# Group by gender and calculate the mean
+gender_grouped = df.groupby('gender')['combined_score'].mean()
+
+# Perform t-test
+combined_score_ttest = stats.ttest_ind(df[df['gender'] == 'male']['combined_score'], 
+                                       df[df['gender'] == 'female']['combined_score'], 
+                                       equal_var=False)
+
+# Visualize gender differences
+plt.figure(figsize=(8, 6))
+df.boxplot(column='combined_score', by='gender')
+plt.title('Combined Score by Gender')
+plt.suptitle('')
+plt.ylabel('Combined Score')
+plt.xlabel('Gender')
+plt.show()
+
+gender_grouped, combined_score_ttest
+
+import seaborn as sns
+import statsmodels.api as sm
+import matplotlib.pyplot as plt
+
+# Distribution analysis: Use a histogram to show the distribution of combined scores across genders
+plt.figure(figsize=(10, 6))
+sns.histplot(data=df, x='combined_score', hue='gender', kde=True, element='step', stat='density', common_norm=False)
+plt.title('Distribution of Combined Score by Gender')
+plt.xlabel('Combined Score')
+plt.ylabel('Density')
+plt.show()
+
+# Regression analysis: Build a regression model
+# Add a constant term
+df['const'] = 1
+# Select independent variables and dependent variable
+X = df[['const', 'polite_count', 'aggressive_count', 'compound', 'gender']]
+# Convert the gender variable to 0 and 1, 0 for female, 1 for male
+X['gender'] = X['gender'].apply(lambda x: 1 if x == 'male' else 0)
+y = df['combined_score']
+
+# Fit the linear regression model
+model = sm.OLS(y, X).fit()
+
+# Output regression results
+model_summary = model.summary()
+model_summary
+
+# Calculate model predictions and residuals
+df['predicted'] = model.predict(X)
+df['residuals'] = df['combined_score'] - df['predicted']
+
+# Visualize regression coefficients
+coefficients = pd.DataFrame({
+    'Variable': X.columns,
+    'Coefficient': model.params,
+    'Std Err': model.bse
+})
+
+plt.figure(figsize=(10, 6))
+sns.barplot(x='Coefficient', y='Variable', data=coefficients, palette='coolwarm', ci=None)
+plt.title('Regression Coefficients')
+plt.xlabel('Coefficient Value')
+plt.ylabel('Variable')
+plt.show()
+
+# Visualize residual plot
+plt.figure(figsize=(10, 6))
+sns.scatterplot(x=df['predicted'], y=df['residuals'], color='purple')
+plt.axhline(0, color='black', linestyle='--')
+plt.title('Residual Plot')
+plt.xlabel('Predicted Values')
+plt.ylabel('Residuals')
+plt.show()
+

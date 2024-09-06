@@ -1,0 +1,114 @@
+import pandas as pd
+from textblob import TextBlob
+
+# Load the Excel file
+file_path = '/mnt/data/data-gender2.xlsx'
+data = pd.read_excel(file_path)
+
+# Clean the data: Remove rows where the 'body' column is empty or not a string
+data_cleaned = data.dropna(subset=['body'])
+data_cleaned = data_cleaned[data_cleaned['body'].apply(lambda x: isinstance(x, str))]
+
+# Define humor detection function
+def detect_humor(text):
+    humor_indicators = ["joke", "just kidding", "not serious", "funny", "sarcasm", "pun", "ironic", "irony", "haha", "lol"]
+    text = text.lower()
+    humor_found = any(indicator in text for indicator in humor_indicators)
+    return humor_found
+
+# Randomly sample 500 rows from the cleaned data
+sampled_data = data_cleaned.sample(500, random_state=42)
+
+# Apply humor detection on the sampled data
+sampled_data['humor_detected'] = sampled_data['body'].apply(detect_humor)
+
+# Calculate the humor detection ratio by gender
+humor_by_gender_sampled = sampled_data.groupby('gender')['humor_detected'].mean() * 100
+
+# Calculate the sentiment polarity of the text
+sampled_data['sentiment_polarity'] = sampled_data['body'].apply(lambda x: TextBlob(x).sentiment.polarity)
+
+# Calculate the average sentiment polarity by gender
+sentiment_by_gender_sampled = sampled_data.groupby('gender')['sentiment_polarity'].mean()
+
+# Organize the results into a DataFrame for display
+results_sampled = pd.DataFrame({
+    'Humor Detected (%)': humor_by_gender_sampled,
+    'Average Sentiment Polarity': sentiment_by_gender_sampled
+})
+
+# Display the results
+import ace_tools as tools
+tools.display_dataframe_to_user(name="Sampled Humor and Sentiment Analysis by Gender", dataframe=results_sampled)
+
+# Define humor detection function
+def detect_humor(text):
+    # Define a list of humor keywords
+    humor_indicators = [
+        "joke", "just kidding", "not serious", "funny", "sarcasm", "pun", 
+        "ironic", "irony", "haha", "lol"
+    ]
+    
+    # Convert the text to lowercase for easier detection
+    text = text.lower()
+    
+    # Check if any humor keyword is present in the text
+    humor_found = any(indicator in text for indicator in humor_indicators)
+    
+    return humor_found
+
+# Apply the humor detection function to each text in the dataset
+data_cleaned['humor_detected'] = data_cleaned['body'].apply(detect_humor)
+
+from transformers import BertTokenizer, BertForMaskedLM
+import torch
+
+# Load the pre-trained BERT model
+tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+model = BertForMaskedLM.from_pretrained('bert-base-uncased')
+
+# Detect anomalous words
+def detect_anomalous_words_bert(text):
+    words = text.split()
+    anomalous_words = []
+    
+    for i, word in enumerate(words):
+        masked_sentence = words.copy()
+        masked_sentence[i] = '[MASK]'  # Replace a word with [MASK] for prediction
+        input_ids = tokenizer(' '.join(masked_sentence), return_tensors='pt')['input_ids']
+        
+        with torch.no_grad():
+            outputs = model(input_ids)
+            predictions = outputs.logits
+            
+        predicted_token_id = torch.argmax(predictions[0, i]).item()
+        predicted_token = tokenizer.decode([predicted_token_id])
+        
+        if predicted_token != word:
+            anomalous_words.append(word)  # If the BERT prediction doesn't match the actual word, it may be anomalous
+    
+    return anomalous_words
+
+# Apply to the 'body' column
+df_sample['anomalous_words'] = df_sample['body'].apply(detect_anomalous_words_bert)
+
+# 3. Use the model to detect sarcasm or irony
+from transformers import pipeline
+sarcasm_detector = pipeline('sentiment-analysis', model='bert-base-sarcasm')
+
+df_sample['sarcasm_score'] = df_sample['body'].apply(lambda x: sarcasm_detector(x)[0]['label'] == 'sarcasm')
+
+# 4. Calculate a comprehensive humor score
+def calculate_humor_score(row):
+    # Assume humor word match counts for 40%, unusual structure for 30%, and sarcasm for 30%
+    return (0.4 * row['humor_word_count'] +
+            0.3 * row['unusual_structure_score'] +
+            0.3 * (1 if row['sarcasm_score'] else 0))
+
+df_sample['humor_score'] = df_sample.apply(calculate_humor_score, axis=1)
+
+# 5. Group by gender and calculate the average humor score
+gender_humor_score = df_sample.groupby('gender')['humor_score'].mean()
+
+# Output the results
+print(gender_humor_score)

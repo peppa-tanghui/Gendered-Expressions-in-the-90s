@@ -1,0 +1,115 @@
+import re
+import pandas as pd
+from sklearn.feature_extraction.text import TfidfVectorizer, ENGLISH_STOP_WORDS
+from sklearn.decomposition import LatentDirichletAllocation
+import gensim
+from gensim import corpora
+from gensim.models import CoherenceModel
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Set visualization style
+sns.set(style='whitegrid')
+
+# 1. Text preprocessing: convert the cleaned text into a list of words
+# Use a simple tokenization method (split by space)
+sampled_data['tokens'] = sampled_data['cleaned_body'].apply(lambda x: x.split())
+
+# 2. Create a dictionary and corpus
+dictionary = corpora.Dictionary(sampled_data['tokens'])
+
+# Filter extreme words (optional)
+dictionary.filter_extremes(no_below=5, no_above=0.5)
+
+# Create the corpus (document-term frequency matrix)
+corpus = [dictionary.doc2bow(text) for text in sampled_data['tokens']]
+
+# 3. Define the range of topic numbers
+topic_range = range(2, 11)  # 2 to 10 topics
+
+# Initialize lists to store results
+perplexities = []
+coherences = []
+
+# 4. Calculate perplexity and coherence scores
+for num_topics in topic_range:
+    print(f"Training LDA model, number of topics: {num_topics}")
+    
+    # Train the LDA model using Gensim
+    lda_model = gensim.models.LdaModel(corpus=corpus,
+                                       id2word=dictionary,
+                                       num_topics=num_topics,
+                                       random_state=42,
+                                       update_every=1,
+                                       chunksize=100,
+                                       passes=10,
+                                       alpha='auto',
+                                       per_word_topics=True)
+    
+    # Calculate perplexity (using Gensim's built-in Perplexity method)
+    perplexity = lda_model.log_perplexity(corpus)
+    perplexities.append(perplexity)
+    
+    # Calculate coherence score
+    coherence_model = CoherenceModel(model=lda_model,
+                                     texts=sampled_data['tokens'],
+                                     dictionary=dictionary,
+                                     coherence='c_v')
+    coherence = coherence_model.get_coherence()
+    coherences.append(coherence)
+    
+    print(f"Number of topics: {num_topics}, Perplexity: {perplexity}, Coherence score: {coherence}")
+
+# 5. Visualize results
+plt.figure(figsize=(12, 6))
+
+# Plot perplexity
+plt.subplot(1, 2, 1)
+sns.lineplot(x=list(topic_range), y=perplexities, marker='o')
+plt.title('Perplexity vs. Number of Topics')
+plt.xlabel('Number of Topics')
+plt.ylabel('Perplexity')
+
+# Plot coherence score
+plt.subplot(1, 2, 2)
+sns.lineplot(x=list(topic_range), y=coherences, marker='o', color='orange')
+plt.title('Coherence Score vs. Number of Topics')
+plt.xlabel('Number of Topics')
+plt.ylabel('Coherence Score')
+
+plt.tight_layout()
+plt.show()
+
+# 6. Print the suggested optimal number of topics
+# choose the number of topics with lower perplexity and higher coherence score
+best_topic_num = topic_range[coherences.index(max(coherences))]
+print(f"The suggested optimal number of topics is: {best_topic_num}")
+
+
+best_topic_num = 5  
+
+# Train the final LDA model
+final_lda = gensim.models.LdaModel(corpus=corpus,
+                                   id2word=dictionary,
+                                   num_topics=best_topic_num,
+                                   random_state=42,
+                                   update_every=1,
+                                   chunksize=100,
+                                   passes=10,
+                                   alpha='auto',
+                                   per_word_topics=True)
+
+# Assign topics to each document
+sampled_data['topic'] = [max(final_lda[doc], key=lambda item: item[1])[0] for doc in corpus]
+
+# Display the distribution of topics by gender
+topic_gender_distribution = sampled_data.groupby(['gender', 'topic']).size().unstack(fill_value=0)
+print(topic_gender_distribution)
+
+# Visualize the distribution
+topic_gender_distribution.plot(kind='bar', figsize=(10,6))
+plt.title('Distribution of Topics by Gender')
+plt.xlabel('Gender')
+plt.ylabel('Number of Documents')
+plt.legend(title='Topic')
+plt.show()

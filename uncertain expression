@@ -1,0 +1,116 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# Load the dataset
+file_path = '/mnt/data/2w.xlsx'
+data = pd.read_excel(file_path)
+
+# Calculate the average of 'ambiguous_count' and 'question_count' for each gender
+gender_means = data.groupby('gender')[['ambiguous_count', 'question_count']].mean()
+
+# Calculate the proportion of each gender
+gender_proportion = data['gender'].value_counts(normalize=True)
+
+# Calculate the ratio of the average ambiguous_count and question_count for female to male
+ambiguous_ratio = gender_means.loc['female', 'ambiguous_count'] / gender_means.loc['male', 'ambiguous_count']
+question_ratio = gender_means.loc['female', 'question_count'] / gender_means.loc['male', 'question_count']
+
+ratios = pd.DataFrame({
+    'Feature': ['ambiguous_count', 'question_count'],
+    'Female:Male Ratio': [ambiguous_ratio, question_ratio]
+})
+
+# Data for visualization
+features = ['Additional interrogative words', 'Restrictive vague language']
+ratios = [question_ratio, ambiguous_ratio]
+
+# Plotting
+plt.figure(figsize=(10, 6))
+bar_width = 0.35
+
+# Male and Female values
+female_values = gender_means.loc['female', ['question_count', 'ambiguous_count']].values
+male_values = gender_means.loc['male', ['question_count', 'ambiguous_count']].values
+
+index = range(len(features))
+
+plt.bar(index, female_values, bar_width, label='Female', color='pink')
+plt.bar([i + bar_width for i in index], male_values, bar_width, label='Male', color='lightblue')
+
+# Labels and Titles
+plt.xlabel('Features')
+plt.ylabel('Average Usage')
+plt.title('Gender Differences in the Use of Uncertain Expressions')
+plt.xticks([i + bar_width / 2 for i in index], features)
+plt.legend()
+
+# Display the plot
+plt.show()
+
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+
+# Load the dataset
+file_path = '/mnt/data/2w.xlsx'
+data = pd.read_excel(file_path)
+
+# Select features and target variable
+X = data[['ambiguous_count', 'question_count']]
+y = data['gender']
+
+# Convert the target variable to numerical values
+y = y.map({'male': 0, 'female': 1})
+
+# Split the data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+
+# Initialize and train the classifier
+model = RandomForestClassifier(random_state=42)
+model.fit(X_train, y_train)
+
+# Make predictions on the test set
+y_pred = model.predict(X_test)
+
+# Evaluate the model
+accuracy = accuracy_score(y_test, y_pred)
+conf_matrix = confusion_matrix(y_test, y_pred)
+class_report = classification_report(y_test, y_pred)
+
+print(f"Accuracy: {accuracy}")
+print("Confusion Matrix:")
+print(conf_matrix)
+print("Classification Report:")
+print(class_report)
+
+import pandas as pd
+import scipy.stats as stats
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Load the dataset
+file_path = '/mnt/data/oversampled_uncertain_expressions.xlsx'
+data = pd.read_excel(file_path)
+
+# Create a combined feature
+data['uncertainty_score'] = data['ambiguous_count'] + data['question_count']
+
+# Group by gender and calculate the mean
+grouped_data = data.groupby('gender')['uncertainty_score'].mean()
+
+# Independent sample t-test
+male_scores = data[data['gender'] == 'male']['uncertainty_score']
+female_scores = data[data['gender'] == 'female']['uncertainty_score']
+t_stat, p_value = stats.ttest_ind(male_scores, female_scores)
+
+# Visualization
+plt.figure(figsize=(10, 6))
+sns.boxplot(x='gender', y='uncertainty_score', data=data)
+plt.title('Uncertainty Score by Gender')
+plt.ylabel('Uncertainty Score (Ambiguous + Question Count)')
+plt.xlabel('Gender')
+plt.show()
+
+# Output statistical analysis results
+grouped_data, t_stat, p_value

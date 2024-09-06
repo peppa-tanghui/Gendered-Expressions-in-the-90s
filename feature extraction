@@ -1,0 +1,225 @@
+import pandas as pd 
+import numpy as np
+import math
+import nltk
+from nltk.sentiment import SentimentIntensityAnalyzer
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
+from nltk.tokenize import word_tokenize
+from sklearn.decomposition import LatentDirichletAllocation
+from sklearn.feature_extraction.text import CountVectorizer
+from nltk.tokenize import word_tokenize
+from nltk import pos_tag
+from tqdm import tqdm
+import re
+from collections import Counter
+
+# Download necessary resources for the first time
+# nltk.download('vader_lexicon')
+# nltk.download('stopwords')
+# nltk.download('wordnet')
+# nltk.download('punkt')
+# nltk.download('omw-1.4')
+# nltk.download('averaged_perceptron_tagger')
+
+def preprocess1(text):
+    text = text.replace('\n', ' ')
+    return text
+
+def length_count(text):
+    # Character count
+    character_count = len(text)
+    # Word count
+    word_count = len(text.split())
+    # Sentence count
+    sentence_count = len(text.split('.'))
+    return character_count, word_count, sentence_count
+
+def sentiment_analysis(text):
+    sia = SentimentIntensityAnalyzer()
+
+    sentiment_scores = sia.polarity_scores(text)
+
+    neg = sentiment_scores['neg']
+    neu = sentiment_scores['neu']
+    pos = sentiment_scores['pos']
+    compound = sentiment_scores['compound']
+
+    if compound > 0.05:
+        sentiment_type = "pos"
+    elif compound < -0.05:
+        sentiment_type = "neg"
+    else:
+        sentiment_type = "neu"
+    return sentiment_type, sentiment_scores
+
+def preprocess2(text):
+    stop_words = set(stopwords.words('english'))
+    lemmatizer = WordNetLemmatizer()
+    tokens = word_tokenize(text.lower())  # Tokenize and convert to lowercase
+    return [lemmatizer.lemmatize(token) for token in tokens if token.isalpha() and token not in stop_words]
+
+def topic_extract(text):
+    processed_text = preprocess2(text)
+    vectorizer = CountVectorizer()
+    X = vectorizer.fit_transform(processed_text)
+
+    # Train LDA model
+    lda = LatentDirichletAllocation(n_components=1, random_state=0)  # n_components is the number of topics
+    lda.fit(X)
+
+    # View topics
+    feature_names = vectorizer.get_feature_names_out()
+    for topic_idx, topic in enumerate(lda.components_):
+        topic_list = " ".join([feature_names[i] for i in topic.argsort()[-4:]])
+    return topic_list
+    
+def pos_tagging(text):
+    # Tokenize
+    tokens = word_tokenize(text)
+    # POS tagging
+    tagged_tokens = pos_tag(tokens)
+    
+    # POS count
+    tag_counts = {}
+    for _, tag in tagged_tokens:
+        if tag in tag_counts:
+            tag_counts[tag] += 1
+        else:
+            tag_counts[tag] = 1
+    
+    # Key POS tags
+    tag_JJ = tag_counts.get('JJ', 0) + tag_counts.get('JJR', 0) + tag_counts.get('JJS', 0)  # Adjectives
+    tag_NN = tag_counts.get('NN', 0) + tag_counts.get('NNP', 0) + tag_counts.get('NNS', 0) + tag_counts.get('NNPS', 0)  # Nouns
+    tag_RB = tag_counts.get('RB', 0) + tag_counts.get('RBR', 0) + tag_counts.get('RBS', 0)  # Adverbs
+    tag_VB = tag_counts.get('VB', 0) + tag_counts.get('VBD', 0) + tag_counts.get('VBG', 0) + tag_counts.get('VBN', 0) + tag_counts.get('VBP', 0) + tag_counts.get('VBZ', 0)  # Verbs
+    tag_UH = tag_counts.get('UN', 0)  # Interjections
+
+    # Total number of words
+    tag_sum = sum(list(tag_counts.values()))
+
+    return tag_counts, tag_JJ, tag_NN, tag_RB, tag_VB, tag_UH, tag_sum
+
+def tone_and_slang_count(text):
+    lemmatizer = WordNetLemmatizer()
+    tokens = word_tokenize(text.lower())
+    tone_count = 0
+    slang_count = 0
+    for item in tokens:
+        if item in tone_words:
+            tone_count += 1
+        if item in slang_words:
+            slang_count += 1
+    return tone_count, slang_count
+
+def phrase_count(text, phrase_list):
+    pattern = r'\b(' + '|'.join(phrase_list) + r')\b'
+    # Count the occurrences of each phrase in the text
+    matches = re.findall(pattern, text, re.IGNORECASE)  # re.IGNORECASE ignores case sensitivity
+    count = len(matches)
+    return count 
+
+path = './data-gender2.csv'
+tone_path = './yuqici.csv'
+slang_path = './slang.csv'
+ambiguous_path = './ambiguous.csv'
+question_path = './question.csv'
+short_path = './short.csv'
+spoken_path = './spoken.csv'
+closeness_path = './closeness.csv'
+aggressive_path = './aggressive.csv'
+polite_path = './polite.csv'
+
+content = pd.read_csv(path)
+tone_content = pd.read_csv(slang_path)
+tone_words = tone_content['words'].tolist()
+slang_content = pd.read_csv(slang_path)
+slang_words = slang_content['words'].tolist()
+ambiguous_content = pd.read_csv(ambiguous_path)
+ambiguous_words = ambiguous_content['words'].tolist()
+question_content = pd.read_csv(question_path)
+question_words = question_content['words'].tolist()
+short_content = pd.read_csv(short_path)
+short_words = short_content['words'].tolist()
+spoken_content = pd.read_csv(spoken_path)
+spoken_words = spoken_content['words'].tolist()
+closeness_content = pd.read_csv(closeness_path)
+closeness_words = closeness_content['words'].tolist()
+aggressive_content = pd.read_csv(aggressive_path)
+aggressive_words = aggressive_content['words'].tolist()
+polite_content = pd.read_csv(polite_path)
+polite_words = polite_content['words'].tolist()
+
+output_list = []
+for ind, item in tqdm(content.iterrows()):
+    text = item.body
+    if pd.isna(text) or len(text)<10:
+        continue
+    try:
+        text = preprocess1(text)
+        # Length statistics
+        character_count, word_count, sentence_count = length_count(text)
+        # Sentiment analysis
+        sentiment_type, sentiment_scores = sentiment_analysis(item.body)
+        # Topic extraction
+        topic = topic_extract(text)
+        # POS statistics
+        tag_counts, tag_JJ, tag_NN, tag_RB, tag_VB, tag_UN, tag_sum = pos_tagging(text)
+        # Count tone words and slang
+        tone_count, slang_count = tone_and_slang_count(text)
+        # Ambiguous words count
+        ambiguous_count = phrase_count(text, ambiguous_words)
+        # Question words count
+        question_count = phrase_count(text, question_words)
+        # Short words count
+        short_count = phrase_count(text, short_words)
+        # Spoken words count
+        spoken_count = phrase_count(text, spoken_words)
+        # Closeness words count
+        closeness_count = phrase_count(text, closeness_words)
+        # Aggressive words count
+        aggressive_count = phrase_count(text, aggressive_words)
+        # Polite words count
+        polite_count = phrase_count(text, polite_words)
+        # Exclamation marks count
+        exclamation_mark_count = text.count('!')
+        # Question marks count
+        question_mark_count = text.count('?')
+
+    except:
+        print('error')
+        continue
+
+    output = {
+        'date': item['date'],
+        'from': item['from'],
+        'subject': item['subject'],
+        'body': item['body'],
+        'gender': item['gender'],
+        'character_count': character_count,
+        'word_count': word_count,
+        'sentence_count': sentence_count,
+        'sentiment_type': sentiment_type,
+        'sentiment_scores': sentiment_scores,
+        'topic': topic,
+        'tag_JJ': tag_JJ,
+        'tag_NN': tag_NN,
+        'tag_RB': tag_RB,
+        'tag_VB': tag_VB,
+        'exclamation_count': text.count('!'),
+        'tone_count': tone_count,
+        'slang_count': slang_count,
+        'ambiguous_count': ambiguous_count,
+        'question_count': question_count,
+        'short_count': short_count,
+        'spoken_count': spoken_count,
+        'closeness_count': closeness_count,
+        'aggressive_count': aggressive_count,
+        'polite_count': polite_count,
+        'exclamation_mark_count': exclamation_mark_count,
+        'question_mark_count': question_mark_count
+    }
+    output_list.append(output)
+
+output_df = pd.DataFrame(output_list)
+output_df.to_csv('./data-gender2-output-new-2k.csv')
